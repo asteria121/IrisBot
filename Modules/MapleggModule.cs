@@ -23,7 +23,7 @@ namespace IrisBot.Modules
                     for (int i = 0; i < user.UnionRankings.Count(); i++)
                         sb.AppendLine($"- {user.UnionRankings[i].WorldName}: {user.UnionRankings[i].CharacterName} / Union Lv. {user.UnionRankings[i].UnionLevel}");
 
-                    eb.AddField("ℹ️ 전체 월드 본캐릭터 정보", sb.ToString());
+                    eb.AddField($"ℹ️ \"{nickname}\" 님의 전체 월드 본캐릭터 정보", sb.ToString());
                     eb.WithColor(Color.Purple);
                     eb.WithDescription("유니온 랭킹에 집계되는 월드만 확인하실 수 있습니다");
                     await RespondAsync("", embed: eb.Build(), ephemeral: true);
