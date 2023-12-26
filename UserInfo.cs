@@ -355,7 +355,14 @@ namespace IrisBot
             if (!string.Equals(NickName, UnionMainCharacter))
             {
                 totalScore += 100;
-                Message.AppendLine("- 본캐릭터가 아닙니다. 본캐릭터 정보를 확인하시기 바랍니다.");
+                if (string.IsNullOrEmpty(UnionMainCharacter))
+                {
+                    Message.AppendLine("- 해당 캐릭터는 유니온 랭킹에 집계되지 않습니다.");
+                }
+                else
+                {
+                    Message.AppendLine("- 본캐릭터가 아닙니다. 본캐릭터 정보를 확인하시기 바랍니다.");
+                }
             }
 
             if (Union < 6000)

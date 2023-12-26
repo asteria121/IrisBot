@@ -25,7 +25,12 @@ namespace IrisBot.Modules
 
                     eb.AddField("ℹ️ 전체 월드 본캐릭터 정보", sb.ToString());
                     eb.WithColor(Color.Purple);
+                    eb.WithDescription("유니온 랭킹에 집계되는 월드만 확인하실 수 있습니다");
                     await RespondAsync("", embed: eb.Build(), ephemeral: true);
+                }
+                else
+                {
+                    await RespondAsync($"⚠️ \"{nickname}\"님의 계정은 어떠한 월드에서도 유니온 랭킹에 집계되지 않습니다.", ephemeral: true);
                 }
             }
             catch (NexonAPIExceptions ex)
@@ -55,7 +60,7 @@ namespace IrisBot.Modules
                     else
                     {
                         eb.WithTitle($"본캐릭터 조회 결과");
-                        await RespondAsync("ℹ️ 본캐릭터: 오류");
+                        await RespondAsync($"⚠️ \"{nickname}\"님의 계정은 유니온 랭킹에 집계되지 않습니다.", ephemeral: true);
                         return;
                     }
                 }
@@ -96,7 +101,7 @@ namespace IrisBot.Modules
                     if (!string.IsNullOrEmpty(user.UnionMainCharacter))
                         sb.AppendLine($"⚠️ 본캐릭터 닉네임: {user.UnionMainCharacter}");
                     else
-                        sb.AppendLine("⚠️ 본캐릭터 닉네임: 오류");
+                        sb.AppendLine("- 유니온 랭킹이 집계되지 않아 본캐릭터 확인 불가");
                 }
                     
                 eb.AddField("ℹ️ 캐릭터 정보", sb.ToString());
