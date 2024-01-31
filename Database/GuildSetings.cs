@@ -2,6 +2,7 @@
 using IrisBot.Enums;
 using IrisBot.Interfaces;
 using Lavalink4NET.Rest;
+using Lavalink4NET.Rest.Entities.Tracks;
 using System;
 using System.Configuration;
 using System.Data.SQLite;
@@ -18,7 +19,7 @@ namespace IrisBot.Database
         public float PlayerVolume { get; set; }
         public ulong? ListMessagdId { get; set; }
         public Translations Language { get; set; }
-        public SearchMode SearchPlatform { get; set; }
+        public TrackSearchMode SearchPlatform { get; set; }
         public ulong? RoleMessageId { get; set; }
         public List<string> RoleEmojiIds { get; set; }
         public bool IsPrivateChannel { get; set; }
@@ -32,14 +33,14 @@ namespace IrisBot.Database
             PlayerVolume = playerVolume;
             ListMessagdId = null;
             Language = Translations.Korean;
-            SearchPlatform = SearchMode.YouTube;
+            SearchPlatform = TrackSearchMode.YouTube;
             RoleMessageId = null;
             RoleEmojiIds = new List<string>();
             IsPrivateChannel = false;
         }
 
         // 저장된 데이터베이스 로드용 생성자
-        public GuildSettings(ulong guildId, float playerVolume, Translations language, SearchMode searchMode, ulong roleMessage, List<string> roleEmojiIds, bool isPrivate)
+        public GuildSettings(ulong guildId, float playerVolume, Translations language, TrackSearchMode searchMode, ulong roleMessage, List<string> roleEmojiIds, bool isPrivate)
         {
             GuildId = guildId;
             PlayerVolume = playerVolume;
@@ -96,7 +97,7 @@ namespace IrisBot.Database
                             ulong guildId = Convert.ToUInt64(reader["ID"]);
                             float volume = Convert.ToSingle(reader["VOLUME"]);
                             Translations lang = (Translations)Convert.ToInt32(reader["LANG"]);
-                            SearchMode mode = (SearchMode)Convert.ToInt32(reader["SEARCHMODE"]);
+                            TrackSearchMode mode = Convert.ToInt32(reader["SEARCHMODE"]) == 1 ? TrackSearchMode.YouTube : TrackSearchMode.SoundCloud;
                             List<string> roleEmojiIds = new List<string>();
                             ulong roleMessage = 0;
                             if (reader["ROLEMESSAGE"] != DBNull.Value) // NULL일 수 있는 값임
@@ -216,7 +217,7 @@ namespace IrisBot.Database
         /// <param name="searchMode">유튜브/사운드클라우드</param>
         /// <param name="guildId">디스코드 서버 ID</param>
         /// <returns>void</returns>
-        public static async Task UpdateSearchModeAsync(SearchMode searchMode, ulong guildId)
+        public static async Task UpdateSearchModeAsync(TrackSearchMode searchMode, ulong guildId)
         {
             string connStr = @"DataSource=.\GuildSettings.db";
             string paths = AppDomain.CurrentDomain.BaseDirectory;
@@ -231,7 +232,7 @@ namespace IrisBot.Database
                     using (var cmd = new SQLiteCommand("UPDATE Guilds SET SEARCHMODE=@SEARCHMODE WHERE ID=@ID", conn))
                     {
                         cmd.Parameters.AddWithValue("@ID", guildId.ToString());
-                        cmd.Parameters.AddWithValue("@SEARCHMODE", searchMode);
+                        cmd.Parameters.AddWithValue("@SEARCHMODE", searchMode == TrackSearchMode.YouTube ? 1 : 2);
                         await cmd.ExecuteNonQueryAsync();
                         await CustomLog.PrintLog(LogSeverity.Info, "Database",
                             $"Changed searchmode to {searchMode} (GuildId: {guildId})");
@@ -431,11 +432,11 @@ namespace IrisBot.Database
             }
         }
 
-        public static SearchMode FindGuildSearchMode(ulong guildId)
+        public static TrackSearchMode FindGuildSearchMode(ulong guildId)
         {
             GuildSettings? data = GetGuildsList().Find(x => x.GuildId == guildId);
             if (data?.SearchPlatform == null)
-                return SearchMode.YouTube;
+                return TrackSearchMode.YouTube;
             else
                 return data.SearchPlatform;
         }

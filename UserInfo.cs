@@ -66,7 +66,7 @@ namespace IrisBot
 
         public static async Task<UserInfo> CreateAsync(string nickname, bool calcScore)
         {
-            CharacterOCID ocid = await NexonAPIManager.GetUserOcidAsync(nickname);
+            CharacterOCID ocid = await NexonAPIManager.GetUserOcidAsync(nickname).ConfigureAwait(false);
 
             if (string.IsNullOrEmpty(ocid.Ocid))
             {
@@ -74,12 +74,12 @@ namespace IrisBot
                 throw ex;
             }
 
-            CharacterBasic basic = await NexonAPIManager.GetCharacterBasicAsync(ocid.Ocid);
-            CharacterPopularity popularity = await NexonAPIManager.GetCharacterPopularityAsync(ocid.Ocid);
-            CharacterUnion union = await NexonAPIManager.GetCharacterUnionAsync(ocid.Ocid);
-            UnionRankingBody unionRanking = await NexonAPIManager.GetCharacterUnionRankingAsync(basic.WorldName, ocid.Ocid);
-            CharacterDojang dojang = await NexonAPIManager.GetCharacterDojangAsync(ocid.Ocid);
-            CharacterStatBody stat = await NexonAPIManager.GetCharacterStatAsync(ocid.Ocid);
+            CharacterBasic basic = await NexonAPIManager.GetCharacterBasicAsync(ocid.Ocid).ConfigureAwait(false);
+            CharacterPopularity popularity = await NexonAPIManager.GetCharacterPopularityAsync(ocid.Ocid).ConfigureAwait(false);
+            CharacterUnion union = await NexonAPIManager.GetCharacterUnionAsync(ocid.Ocid).ConfigureAwait(false);
+            UnionRankingBody unionRanking = await NexonAPIManager.GetCharacterUnionRankingAsync(basic.WorldName, ocid.Ocid).ConfigureAwait(false);
+            CharacterDojang dojang = await NexonAPIManager.GetCharacterDojangAsync(ocid.Ocid).ConfigureAwait(false);
+            CharacterStatBody stat = await NexonAPIManager.GetCharacterStatAsync(ocid.Ocid).ConfigureAwait(false);
 
             // 캐릭터 기본 정보 입력
             UserInfo userInfo = new UserInfo();
@@ -106,12 +106,12 @@ namespace IrisBot
             // 길드
             if (!string.IsNullOrEmpty(basic.GuildName))
             {
-                GuildID guildId = await NexonAPIManager.GetGuildIdAsync(basic.GuildName, basic.WorldName);
+                GuildID guildId = await NexonAPIManager.GetGuildIdAsync(basic.GuildName, basic.WorldName).ConfigureAwait(false);
                 GuildInformation guildInformation = new GuildInformation();
-                guildInformation.Basic = await NexonAPIManager.GetGuildInformationAsync(guildId.Id);
-                guildInformation.FameRanking = await NexonAPIManager.GetGuildRankingAsync(basic.WorldName, GuildRankType.Fame, basic.GuildName);
-                guildInformation.RaceRanking = await NexonAPIManager.GetGuildRankingAsync(basic.WorldName, GuildRankType.Race, basic.GuildName);
-                guildInformation.PunchRanking = await NexonAPIManager.GetGuildRankingAsync(basic.WorldName, GuildRankType.Punch, basic.GuildName);
+                guildInformation.Basic = await NexonAPIManager.GetGuildInformationAsync(guildId.Id).ConfigureAwait(false);
+                guildInformation.FameRanking = await NexonAPIManager.GetGuildRankingAsync(basic.WorldName, GuildRankType.Fame, basic.GuildName).ConfigureAwait(false);
+                guildInformation.RaceRanking = await NexonAPIManager.GetGuildRankingAsync(basic.WorldName, GuildRankType.Race, basic.GuildName).ConfigureAwait(false);
+                guildInformation.PunchRanking = await NexonAPIManager.GetGuildRankingAsync(basic.WorldName, GuildRankType.Punch, basic.GuildName).ConfigureAwait(false);
 
                 // 길드 기본 정보 입력
                 userInfo.Guild = basic.GuildName;
@@ -140,13 +140,13 @@ namespace IrisBot
             }
             else
             {
-                userInfo.Guild = "없음";
+                userInfo.Guild = "";
             }
 
             if (calcScore)
             {
-                // 최근 경험치 증감폭을 측정함 
-                userInfo.ExpHistories = await AnalyzieExpHistoryAsync(nickname);
+                // 최근 경험치 증감폭을 측정함 TODO: 업데이트 예정
+                // userInfo.ExpHistories = await AnalyzieExpHistoryAsync(nickname).ConfigureAwait(false);
 
                 // 최종 신용점수 계산
                 userInfo.Score = userInfo.CalculateScore();
@@ -159,7 +159,7 @@ namespace IrisBot
         {
             string url = $"https://maple.gg/u/{nickname}";
             HtmlWeb web = new HtmlWeb();
-            HtmlDocument htmlDoc = await web.LoadFromWebAsync(url);
+            HtmlDocument htmlDoc = await web.LoadFromWebAsync(url).ConfigureAwait(false);
 
             var scripts = htmlDoc.DocumentNode.Descendants("script");
             foreach (var script in scripts)
@@ -278,6 +278,7 @@ namespace IrisBot
                 }
             }
 
+            /* TODO: 업데이트 예정
             // 최근 활동일 (만점 25점)
             if (ExpHistories == null || ExpHistories.Count < 5)
             {
@@ -350,6 +351,7 @@ namespace IrisBot
                     }
                 }
             }
+            */
 
             // 유니온 (만점 15점)
             if (!string.Equals(NickName, UnionMainCharacter))

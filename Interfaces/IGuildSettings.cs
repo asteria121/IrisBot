@@ -1,5 +1,6 @@
 ﻿using IrisBot.Enums;
 using Lavalink4NET.Rest;
+using Lavalink4NET.Rest.Entities.Tracks;
 
 namespace IrisBot.Interfaces
 {
@@ -9,7 +10,7 @@ namespace IrisBot.Interfaces
         float PlayerVolume { get; set; }
         ulong? ListMessagdId { get; set; }
         Translations Language { get; set; }
-        SearchMode SearchPlatform { get; set; }
+        TrackSearchMode SearchPlatform { get; set; }
         ulong? RoleMessageId { get; set; }
         List<string> RoleEmojiIds { get; set; }
         bool IsPrivateChannel { get; set; }

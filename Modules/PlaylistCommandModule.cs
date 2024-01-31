@@ -3,14 +3,27 @@ using Discord.Interactions;
 using Discord.WebSocket;
 using IrisBot.Database;
 using IrisBot.Enums;
+using IrisBot.Player;
 using IrisBot.Translation;
 using Lavalink4NET;
-using Lavalink4NET.Player;
+using Lavalink4NET.Events;
+using Lavalink4NET.Tracks;
+using Lavalink4NET.Players.Queued;
+using Lavalink4NET.Players;
+using Lavalink4NET.Rest;
+using Lavalink4NET.Tracking;
+using Lavalink4NET.Rest.Entities.Tracks;
+using Lavalink4NET.DiscordNet;
+using Lavalink4NET.Players.Preconditions;
+using Microsoft.Extensions.Options;
 using System.Text;
+using System.Collections.Immutable;
+using Discord.Commands;
+using Microsoft.Extensions.Http;
 
 namespace IrisBot.Modules
 {
-    [Group("playlist", "Playlist management command")]
+    [Discord.Interactions.Group("playlist", "Playlist management command")]
     public class PlaylistCommandModule : InteractionModuleBase<ShardedInteractionContext>
     {
         private IAudioService _audioService;
@@ -23,15 +36,16 @@ namespace IrisBot.Modules
         }
 
         [SlashCommand("list", "Display playlist lists")]
-        [RequireBotPermission(GuildPermission.EmbedLinks)]
-        [RequireBotPermission(GuildPermission.SendMessages)]
+        [Discord.Interactions.RequireBotPermission(GuildPermission.EmbedLinks)]
+        [Discord.Interactions.RequireBotPermission(GuildPermission.SendMessages)]
         public async Task ViewPlaylist()
         {
+            await DeferAsync(ephemeral: true).ConfigureAwait(false);
             string path = Path.Combine(Program.PlaylistDirectory, Context.Guild.Id.ToString());
-            Translations lang = await TranslationLoader.FindGuildTranslationAsync(Context.Guild.Id);
+            Translations lang = await TranslationLoader.FindGuildTranslationAsync(Context.Guild.Id).ConfigureAwait(false);
             if (!Directory.Exists(path))
             {
-                await RespondAsync(await TranslationLoader.GetTranslationAsync("no_playlist", lang), ephemeral: true);
+                await FollowupAsync(await TranslationLoader.GetTranslationAsync("no_playlist", lang), ephemeral: true).ConfigureAwait(false);
                 return;
             }
 
@@ -45,124 +59,138 @@ namespace IrisBot.Modules
             }
             sb.AppendLine("```");
 
-            await RespondAsync(sb.ToString());
+            await FollowupAsync(sb.ToString(), ephemeral: true).ConfigureAwait(false);
         }
 
         [SlashCommand("add", "Make or \"OVERWRITE\" playlist")]
-        [RequireBotPermission(GuildPermission.EmbedLinks)]
-        [RequireBotPermission(GuildPermission.SendMessages)]
+        [Discord.Interactions.RequireBotPermission(GuildPermission.EmbedLinks)]
+        [Discord.Interactions.RequireBotPermission(GuildPermission.SendMessages)]
         public async Task AddPlaylist(string name)
         {
+            await DeferAsync().ConfigureAwait(false);
             SocketGuildUser user = (SocketGuildUser)Context.User;
-            IrisPlayer? player = _audioService.GetPlayer(Context.Guild.Id) as IrisPlayer;
-            Translations lang = await TranslationLoader.FindGuildTranslationAsync(Context.Guild.Id);
+            var player = await IrisPlayer.GetPlayerAsync(Context, _audioService);
+            if (player == null)
+                return;
+
+            Translations lang = await TranslationLoader.FindGuildTranslationAsync(Context.Guild.Id).ConfigureAwait(false);
             if (player == null || (player.Queue.IsEmpty && player.CurrentTrack == null))
             {
-                await RespondAsync(await TranslationLoader.GetTranslationAsync("empty_queue", lang), ephemeral: true);
+                await RespondAsync(await TranslationLoader.GetTranslationAsync("empty_queue", lang)).ConfigureAwait(false);
             }
             else if (player.VoiceChannelId != user.VoiceChannel.Id)
             {
-                await RespondAsync(await TranslationLoader.GetTranslationAsync("different_channel_warning", lang), ephemeral: true);
+                await RespondAsync(await TranslationLoader.GetTranslationAsync("different_channel_warning", lang)).ConfigureAwait(false);
             }
             else
             {
-                PlaylistResult result = await Playlist.CreatePlaylistAsync(new Playlist(player.GuildId, name), player?.CurrentTrack, player?.Queue);
+                PlaylistResult result = await Playlist.CreatePlaylistAsync(new Playlist(player.GuildId, name), player.CurrentTrack, player.Queue).ConfigureAwait(false);
                 switch (result)
                 {
                     case PlaylistResult.New:
-                        await RespondAsync($"{await TranslationLoader.GetTranslationAsync("playlist_new", lang)}: {name}", ephemeral: true);
+                        await FollowupAsync($"{await TranslationLoader.GetTranslationAsync("playlist_new", lang)}: {name}").ConfigureAwait(false);
                         break;
                     case PlaylistResult.Overwrite:
-                        await RespondAsync($"{await TranslationLoader.GetTranslationAsync("playlist_overwrite", lang)}: {name}", ephemeral: true);
+                        await FollowupAsync($"{await TranslationLoader.GetTranslationAsync("playlist_overwrite", lang)}: {name}").ConfigureAwait(false);
                         break;
                     case PlaylistResult.CreationLimit:
-                        await RespondAsync(await TranslationLoader.GetTranslationAsync("playlist_creation_limit", lang), ephemeral: true);
+                        await FollowupAsync(await TranslationLoader.GetTranslationAsync("playlist_creation_limit", lang)).ConfigureAwait(false);
                         break;
                     case PlaylistResult.Fail:
-                        await RespondAsync(await TranslationLoader.GetTranslationAsync("playlist_fail", lang), ephemeral: true);
+                        await FollowupAsync(await TranslationLoader.GetTranslationAsync("playlist_fail", lang)).ConfigureAwait(false);
                         break;
                 }
             }
         }
 
         [SlashCommand("remove", "Remove specified name of playlist")]
-        [RequireBotPermission(GuildPermission.EmbedLinks)]
-        [RequireBotPermission(GuildPermission.SendMessages)]
+        [Discord.Interactions.RequireBotPermission(GuildPermission.EmbedLinks)]
+        [Discord.Interactions.RequireBotPermission(GuildPermission.SendMessages)]
         public async Task RemovePlaylist(string name)
         {
-            PlaylistDeleteResult result = await Playlist.DeletePlaylistAsync(Context.Guild.Id, name);
-            Translations lang = await TranslationLoader.FindGuildTranslationAsync(Context.Guild.Id);
+            await DeferAsync().ConfigureAwait(false);
+            PlaylistDeleteResult result = await Playlist.DeletePlaylistAsync(Context.Guild.Id, name).ConfigureAwait(false);
+            Translations lang = await TranslationLoader.FindGuildTranslationAsync(Context.Guild.Id).ConfigureAwait(false);
             switch (result)
             {
                 case PlaylistDeleteResult.Success:
-                    await RespondAsync(await TranslationLoader.GetTranslationAsync("playlist_remove_success", lang));
+                    await FollowupAsync(await TranslationLoader.GetTranslationAsync("playlist_remove_success", lang)).ConfigureAwait(false);
                     break;
                 case PlaylistDeleteResult.NotExists:
-                    await RespondAsync($"{await TranslationLoader.GetTranslationAsync("playlist_remove_not_exists", lang)}: {name}", ephemeral: true);
+                    await FollowupAsync($"{await TranslationLoader.GetTranslationAsync("playlist_remove_not_exists", lang)}: {name}").ConfigureAwait(false);
                     break;
                 case PlaylistDeleteResult.Fail:
-                    await RespondAsync(await TranslationLoader.GetTranslationAsync("playlist_remove_fail", lang), ephemeral: true);
+                    await FollowupAsync(await TranslationLoader.GetTranslationAsync("playlist_remove_fail", lang)).ConfigureAwait(false);
                     break;
             }
         }
 
         [SlashCommand("load", "Load specified name of playlist")]
-        [RequireBotPermission(GuildPermission.EmbedLinks)]
-        [RequireBotPermission(GuildPermission.SendMessages)]
+        [Discord.Interactions.RequireBotPermission(GuildPermission.EmbedLinks)]
+        [Discord.Interactions.RequireBotPermission(GuildPermission.SendMessages)]
         public async Task LoadPlaylist(string name)
         {
+            await DeferAsync().ConfigureAwait(false);
+
             SocketGuildUser user = (SocketGuildUser)Context.User;
             Translations lang = await TranslationLoader.FindGuildTranslationAsync(Context.Guild.Id);
             string[]? lists = await Playlist.LoadPlaylistAsync(Context.Guild.Id, name);
 
             if (lists == null || lists.Count() < 1)
             {
-                await RespondAsync(await TranslationLoader.GetTranslationAsync("playlist_empty_error", lang), ephemeral: true);
+                await FollowupAsync(await TranslationLoader.GetTranslationAsync("playlist_empty_error", lang)).ConfigureAwait(false);
                 return;
             }
 
-            var player = _audioService.GetPlayer<IrisPlayer>(Context.Guild.Id);
-            if (user.VoiceChannel == null)
-            {
-                await RespondAsync(await TranslationLoader.GetTranslationAsync("should_joined", lang), ephemeral: true);
+            var preconditions = ImmutableArray.Create(item: PlayerPrecondition.Create<IrisPlayer>(precondition: x => x.Queue.Count < Program.MaxQueueCount));
+            var player = await IrisPlayer.GetPlayerAsync(Context, _audioService, connectToVoiceChannel: true, precondition: preconditions).ConfigureAwait(false);
+            if (player == null)
                 return;
-            }
-            else if (player != null && player.VoiceChannelId != user.VoiceChannel.Id)
-            {
-                await RespondAsync(await TranslationLoader.GetTranslationAsync("player_already_running", lang), ephemeral: true);
-                return;
-            }
-            else if (player == null)
-            {
-                player = await _audioService.JoinAsync<IrisPlayer>(Context.Guild.Id, user.VoiceChannel.Id, selfDeaf: true);
-                player.Channel = Context.Channel;
-            }
-            else if (player.Queue.Count >= Program.MaxQueueCount)
-            {
-                await RespondAsync(await TranslationLoader.GetTranslationAsync("maximum_queue", lang), ephemeral: true);
-                return;
-            }
 
+            int totalPlayedSong = 0;
+            List<string> failedSongs = new List<string>();
             foreach (var trackUri in lists)
             {
                 if (player.Queue.Count() >= Program.MaxQueueCount)
                     break;
 
-                var track = await _audioService.GetTrackAsync(trackUri);
-                if (track != null)
+                TrackLoadResult searchResult = await _audioService.Tracks.LoadTracksAsync(trackUri, loadOptions: default).ConfigureAwait(false);
+                if (searchResult.IsSuccess)
                 {
-                    track.Context = new TrackContext
-                    {
-                        RequesterName = user.Username,
-                    };
-
-                    player.Queue.Add(track);
-                    if (player.State != PlayerState.Playing)
-                        await player.SkipAsync();
+                    TrackReference reference = new TrackReference(searchResult.Track);
+                    IrisTrack track = new IrisTrack(reference);
+                    track.Requester = user.Username;
+                    await player.PlayAsync(track).ConfigureAwait(false);
+                    totalPlayedSong++;
+                }
+                else
+                {
+                    failedSongs.Add(trackUri);
                 }
             }
 
-            await RespondAsync($"{await TranslationLoader.GetTranslationAsync("playlist_load_success", lang)}: {name}");
+            EmbedBuilder eb = new EmbedBuilder();
+            eb.WithTitle(await TranslationLoader.GetTranslationAsync("added_playlist_queue", lang))
+                .WithDescription($"{await TranslationLoader.GetTranslationAsync("custom_playlist", lang)}: {name}" +
+                    $"\r\n{await TranslationLoader.GetTranslationAsync("total_tracks", lang)} : `{totalPlayedSong}/{lists.Count()}`")
+                .WithColor(Color.Purple);
+
+            // 불러오기 실패한 항목은 사용자에게 알림
+            if (failedSongs.Count() > 0)
+            {
+                StringBuilder sb = new StringBuilder();
+                int count = 0;
+                foreach (var link in failedSongs)
+                {
+                    sb.AppendLine(link);
+                    count++;
+                    if (count >= 10) break;
+                }
+
+                eb.AddField(await TranslationLoader.GetTranslationAsync("playlist_link_error", lang), sb.ToString());
+            }
+
+            await FollowupAsync(embed: eb.Build()).ConfigureAwait(false);
         }
     }
 }

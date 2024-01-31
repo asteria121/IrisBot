@@ -5,14 +5,20 @@ using IrisBot.Database;
 using IrisBot.Modules;
 using Lavalink4NET;
 using Lavalink4NET.DiscordNet;
-using Lavalink4NET.Logging.Microsoft;
-using Lavalink4NET.Tracking;
+using Lavalink4NET.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.ComponentModel;
 using System.Reflection;
+using Lavalink4NET.InactivityTracking.Extensions;
+using IrisBot.Player;
+using Lavalink4NET.InactivityTracking.Trackers.Users;
+using Lavalink4NET.InactivityTracking.Trackers.Idle;
+using System.Collections.Immutable;
+using Lavalink4NET.InactivityTracking;
 
 namespace IrisBot
 {
@@ -27,13 +33,13 @@ namespace IrisBot
         public static int PagelistCount { get; private set; }
         public static int MaxPlaylistCount { get; private set; }
         public static int MaxQueueCount { get; private set; }
+        public static string Token { get; private set; }
         private static int ShardsCount = 1;
         private static int AutoDisconnectDelay = 600;
-        private static string? Token = "";
-        private static string? RestUri = "";
-        private static string? WebSocketUri = "";
-        private static string? Password = "";
-        private static string? BotMessage = "";
+        private static string RestUri = "";
+        private static string WebSocketUri = "";
+        private static string Password = "";
+        public static string BotMessage = "";
         public static string PlaylistDirectory
         {
             get { return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Playlist"); }
@@ -47,149 +53,44 @@ namespace IrisBot
             get { return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources"); }
         }
 
-        public static string? GetEnumDescription(Enum value)
-        {
-            FieldInfo? field = value.GetType().GetField(value.ToString());
-            if (field == null)
-                return null;
-
-            DescriptionAttribute? attribute = (DescriptionAttribute?)Attribute.GetCustomAttribute(field, typeof(DescriptionAttribute));
-
-            return attribute == null ? value.ToString() : attribute.Description;
-        }
-
-        public Program()
-        {
-            MaxQueueCount = 200;
-
-            _socketConfig = new DiscordSocketConfig()
-            {
-                GatewayIntents = GatewayIntents.AllUnprivileged ^ GatewayIntents.GuildInvites ^ GatewayIntents.GuildScheduledEvents,
-                AlwaysDownloadUsers = true,
-                LogLevel = LogSeverity.Verbose,
-                TotalShards = ShardsCount,
-                UseInteractionSnowflakeDate = false
-            };
-            _client = new DiscordShardedClient(_socketConfig);
-
-#pragma warning disable CS8601 // 가능한 null 참조 할당입니다.
-            _services = new ServiceCollection()
-                // Discord.NET
-                .AddSingleton<InteractionModule>()
-                .AddSingleton<MusicCommandModule>()
-                .AddSingleton(_client)
-                .AddSingleton(x => new InteractionService(x.GetRequiredService<DiscordShardedClient>()))
-                // Discord.NET
-
-                // Lavalink4NET
-                .AddSingleton<IAudioService, LavalinkNode>()
-                .AddSingleton<IDiscordClientWrapper, DiscordClientWrapper>()
-                .AddSingleton(new LavalinkNodeOptions
-                {
-                    RestUri = RestUri,
-                    WebSocketUri = WebSocketUri,
-                    Password = Password,
-                    ReconnectStrategy = ReconnectStrategies.DefaultStrategy,
-                    BufferSize = 1048576, // 1 MB
-                    DisconnectOnStop = false,
-                })
-                .AddMicrosoftExtensionsLavalinkLogging()
-                .AddLogging(s => s.AddConsole().SetMinimumLevel(LogLevel.Information))
-                // Lavalink4NET
-
-                // InactivityTracking
-                .AddSingleton(new InactivityTrackingOptions
-                {
-                    DisconnectDelay = TimeSpan.FromSeconds(AutoDisconnectDelay),
-                })
-                .AddSingleton(x => new InactivityTrackingService(x.GetRequiredService<IAudioService>(),
-                                x.GetRequiredService<IDiscordClientWrapper>(),
-                                x.GetRequiredService<InactivityTrackingOptions>()))
-                // InactivityTracking
-
-                .BuildServiceProvider();
-#pragma warning restore CS8601 // 가능한 null 참조 할당입니다.
-        }
-
         static void Main(string[] args)
         {
             LoadSettingsAsync().GetAwaiter().GetResult();
-            new Program().RunAsync().GetAwaiter().GetResult();
-        }
+            GuildSettings.InitializeAsync().GetAwaiter().GetResult();
 
-        public async Task RunAsync()
-        {
-            if (string.IsNullOrEmpty(RestUri))
+            var builder = new HostApplicationBuilder();
+            builder.Services.AddSingleton<DiscordShardedClient>();
+            builder.Services.AddSingleton(new DiscordSocketConfig
             {
-                await CustomLog.PrintLog(LogSeverity.Error, "Bot", "\"rest_uri\" is empty on appsettings.json");
-                Environment.Exit(1);
-            }
-            else if (string.IsNullOrEmpty(WebSocketUri))
-            {
-                await CustomLog.PrintLog(LogSeverity.Error, "Bot", "\"websocket_uri\" is empty on appsettings.json");
-                Environment.Exit(1);
-            }
-            else if (string.IsNullOrEmpty(Password))
-            {
-                await CustomLog.PrintLog(LogSeverity.Error, "Bot", "\"password\" is empty on appsettings.json");
-                Environment.Exit(1);
-            }
-            else if (string.IsNullOrEmpty(TestGuildId) && IsDebug()) // testguild_id는 Debug에서만 필요함
-            {
-                await CustomLog.PrintLog(LogSeverity.Error, "Bot", "\"testguild_id\" is empty on appsettings.json");
-                Environment.Exit(1);
-            }
-            else if (string.IsNullOrEmpty(Token))
-            {
-                await CustomLog.PrintLog(LogSeverity.Error, "Bot", "\"token\" is empty on appsettings.json");
-                Environment.Exit(1);
-            }
-            else if (string.IsNullOrEmpty(RestUri))
-            {
-                await CustomLog.PrintLog(LogSeverity.Error, "Bot", "\"rest_uri\" is empty on appsettings.json");
-                Environment.Exit(1);
-            }
-            else if (string.IsNullOrEmpty(BotMessage))
-            {
-                await CustomLog.PrintLog(LogSeverity.Error, "Bot", "\"bot_message\" is empty on appsettings.json");
-                Environment.Exit(1);
-            }
-            else if (string.IsNullOrEmpty(OpenApiKey))
-            {
-                await CustomLog.PrintLog(LogSeverity.Error, "Bot", "\"openapikey\" is empty on appsettings.json");
-                Environment.Exit(1);
-            }
+                GatewayIntents = GatewayIntents.AllUnprivileged ^ GatewayIntents.GuildInvites ^ GatewayIntents.GuildScheduledEvents,
+                ///AlwaysDownloadUsers = true, // TODO: PROBLEM
+                LogLevel = LogSeverity.Verbose,
+                TotalShards = ShardsCount,
+                UseInteractionSnowflakeDate = false
+            });
+            builder.Services.AddSingleton<InteractionService>();
+            builder.Services.AddHostedService<InteractionModule>();
+            builder.Services.AddHostedService<MusicCommandModule>();
 
-            await GuildSettings.InitializeAsync(); // appsettings.json 불러오기
+            // Lavalink
+            builder.Services.AddLavalink();
+            builder.Services.ConfigureLavalink(x =>
+            {
+                x.BaseAddress = new Uri(RestUri);
+                //x.WebSocketUri = new Uri(WebSocketUri);
+                x.Passphrase = Password;
+            });
+            builder.Services.AddLogging(x => x.AddConsole().SetMinimumLevel(LogLevel.Warning));
 
-            var client = _services.GetRequiredService<DiscordShardedClient>();
-            client.Log += LogAsync;
-            client.JoinedGuild += JoinGuildAsync;
-            client.LeftGuild += LeftGuildAsync;
+            // Inactivity Tracking
+            builder.Services.AddInactivityTracking();
+            builder.Services.AddSingleton<IInactivityTracker, IdleInactivityTracker>();
+            builder.Services.Configure<IdleInactivityTrackerOptions>(options =>
+            {
+                options.Timeout = TimeSpan.FromSeconds(AutoDisconnectDelay);
+            });
 
-            // 명령어 등록 및 클래스 이벤트 등록하는 함수
-            await _services.GetRequiredService<InteractionModule>().InitializeAsync();
-            await _services.GetRequiredService<MusicCommandModule>().InitializeAsync();
-            _services.GetRequiredService<InactivityTrackingService>().BeginTracking();
-
-            await client.LoginAsync(TokenType.Bot, Token);
-            await client.StartAsync();
-            await client.SetGameAsync(BotMessage); // appsettings.json에서 현재 상태 메세지를 수정할 수 있음.
-
-            await Task.Delay(Timeout.Infinite);
-        }
-
-        private async Task JoinGuildAsync(SocketGuild guild)
-        {
-            if (GuildSettings.GetGuildsList().Find(x => x.GuildId == guild.Id) == null)
-                await GuildSettings.AddNewGuildAsync(new GuildSettings(guild.Id, 0.5f)); // 데이터베이스 및 서버 객체 추가
-        }
-
-        private async Task LeftGuildAsync(SocketGuild guild)
-        {
-            await GuildSettings.RemoveGuildDataAsync(guild.Id); // 데이터베이스 및 서버 객체 삭제
-            await Playlist.ClearPlaylistAsync(guild.Id); // 플레이리스트 전체 삭제
-            
+            builder.Build().Run();
         }
 
         private async static Task LoadSettingsAsync()
@@ -206,19 +107,86 @@ namespace IrisBot
                 using (StreamReader file = File.OpenText(jsonPath))
                 using (JsonTextReader reader = new JsonTextReader(file))
                 {
-                    JObject json = (JObject)JToken.ReadFrom(reader);
-                    RestUri = json["rest_uri"]?.ToString();
-                    WebSocketUri = json["websocket_uri"]?.ToString();
-                    Password = json["password"]?.ToString();
-                    TestGuildId = json["testguild_id"]?.ToString();
-                    Token = json["token"]?.ToString();
-                    OpenApiKey = json["openapikey"]?.ToString();
-                    BotMessage = json["bot_message"]?.ToString();
-                    bool pagelistResult = int.TryParse(json["pagelist_count"]?.ToString(), out int pagelistCount);
-                    bool playlistResult = int.TryParse(json["max_playlist_count"]?.ToString(), out int playlistCount);
-                    bool shardsCountResult = int.TryParse(json["shards_count"]?.ToString(), out int shardsCount);
-                    bool autoDisconnectDelayResult = int.TryParse(json["auto_disconnect_delay"]?.ToString(), out int autoDisconnectDelay);
+                    MaxQueueCount = 200;
 
+                    JObject json = (JObject)JToken.ReadFrom(reader);
+                    string? tmp = json["rest_uri"]?.ToString();
+                    if (string.IsNullOrEmpty(tmp))
+                    {
+                        await CustomLog.PrintLog(LogSeverity.Error, "Bot", "\"rest_uri\" is empty on appsettings.json");
+                        Environment.Exit(1);
+                    }
+                    else
+                    {
+                        RestUri = tmp;
+                    }
+
+                    tmp = json["websocket_uri"]?.ToString();
+                    if (string.IsNullOrEmpty(tmp))
+                    {
+                        await CustomLog.PrintLog(LogSeverity.Error, "Bot", "\"websocket_uri\" is empty on appsettings.json");
+                        Environment.Exit(1);
+                    }
+                    else
+                    {
+                        WebSocketUri = tmp;
+                    }
+
+                    tmp = json["password"]?.ToString();
+                    if (string.IsNullOrEmpty(tmp))
+                    {
+                        await CustomLog.PrintLog(LogSeverity.Error, "Bot", "\"password\" is empty on appsettings.json");
+                        Environment.Exit(1);
+                    }
+                    else
+                    {
+                        Password = tmp;
+                    }
+
+                    tmp = json["token"]?.ToString();
+                    if (string.IsNullOrEmpty(tmp))
+                    {
+                        await CustomLog.PrintLog(LogSeverity.Error, "Bot", "\"token\" is empty on appsettings.json");
+                        Environment.Exit(1);
+                    }
+                    else
+                    {
+                        Token = tmp;
+                    }
+
+                    tmp = TestGuildId = json["testguild_id"]?.ToString();
+                    if (string.IsNullOrEmpty(TestGuildId) && IsDebug()) // testguild_id는 Debug에서만 필요함
+                    {
+                        await CustomLog.PrintLog(LogSeverity.Error, "Bot", "\"testguild_id\" is empty on appsettings.json");
+                        Environment.Exit(1);
+                    }
+                    else
+                    {
+                        TestGuildId = tmp;
+                    }
+
+                    tmp = json["openapikey"]?.ToString();
+                    if (string.IsNullOrEmpty(tmp))
+                    {
+                        await CustomLog.PrintLog(LogSeverity.Error, "Bot", "\"openapikey\" is empty on appsettings.json");
+                        Environment.Exit(1);
+                    }
+                    else
+                    {
+                        OpenApiKey = tmp;
+                    }
+
+                    tmp = json["bot_message"]?.ToString();
+                    if (string.IsNullOrEmpty(tmp))
+                    {
+                        BotMessage = "";
+                    }
+                    else
+                    {
+                        BotMessage = tmp;
+                    }
+                    
+                    bool pagelistResult = int.TryParse(json["pagelist_count"]?.ToString(), out int pagelistCount);
                     if (pagelistResult)
                         PagelistCount = pagelistCount;
                     else
@@ -227,37 +195,43 @@ namespace IrisBot
                         PagelistCount = 10;
                     }
 
-                    if (playlistResult)
+
+                    if (int.TryParse(json["max_playlist_count"]?.ToString(), out int playlistCount))
+                    {
                         MaxPlaylistCount = playlistCount;
+                    }
                     else
                     {
                         await CustomLog.PrintLog(LogSeverity.Warning, "Bot", "\"max_playlist_count\" is empty on appsettings.json.\r\nAutomatically set to default value 10.");
                         MaxPlaylistCount = 10;
                     }
 
-                    if (shardsCountResult)
-                        ShardsCount = shardsCount;
-                    else
-                        await CustomLog.PrintLog(LogSeverity.Warning, "Bot", "\"shards_count\" is empty on appsettings.json.\r\nAutomatically set to default value 1.");
 
-                    if (autoDisconnectDelayResult)
-                        AutoDisconnectDelay = autoDisconnectDelay;
+                    if (int.TryParse(json["shards_count"]?.ToString(), out int shardsCount))
+                    {
+                        ShardsCount = shardsCount;
+                    }
                     else
+                    {
+                        await CustomLog.PrintLog(LogSeverity.Warning, "Bot", "\"shards_count\" is empty on appsettings.json.\r\nAutomatically set to default value 1.");
+                        ShardsCount = 1;
+                    }
+
+                    if (int.TryParse(json["auto_disconnect_delay"]?.ToString(), out int autoDisconnectDelay))
+                    {
+                        AutoDisconnectDelay = autoDisconnectDelay;
+                    }
+                    else
+                    {
                         await CustomLog.PrintLog(LogSeverity.Warning, "Bot", "\"auto_disconnect_delay\" is empty on appsettings.json.\r\nAutomatically set to default value 600s.");
+                        AutoDisconnectDelay = 600;
+                    }
                 }
             }
             catch (Exception ex)
             {
                 await CustomLog.ExceptionHandler(ex);
             }
-        }
-
-        private async Task LogAsync(LogMessage log)
-        {
-            if (log.Exception == null)
-                await CustomLog.PrintLog(log.Severity, log.Source, log.Message);
-            else
-                await CustomLog.ExceptionHandler(log.Exception);
         }
 
         public static bool IsDebug()

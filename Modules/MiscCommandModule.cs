@@ -42,6 +42,7 @@ namespace IrisBot.Modules
             eb.AddField($"{await TranslationLoader.GetTranslationAsync("irisbot_info", lang)}",
                 $"[Github](https://github.com/asteria121/IrisBot)\r\n" +
                 $"Copyright (c) 2023 Asteria. All rights reserved.\r\n" +
+                $"Iris Bot is not endorsed by NEXON Korea and doesn’t reflect the views or opinions of NEXON Korea or anyone officially involved in producing or managing MapleStory.\r\n" +
                 $"[MIT License](https://github.com/asteria121/IrisBot/blob/master/LICENSE.txt)\r\n" +
                 $"[{await TranslationLoader.GetTranslationAsync("tos", lang)}](https://github.com/asteria121/IrisBot/blob/master/Terms%20of%20service), " +
                 $"[{await TranslationLoader.GetTranslationAsync("privacy_policy", lang)}](https://github.com/asteria121/IrisBot/blob/master/Privacy%20Policy)");

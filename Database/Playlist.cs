@@ -1,6 +1,13 @@
 ﻿using System.Text;
 using IrisBot.Interfaces;
-using Lavalink4NET.Player;
+using Lavalink4NET.Rest.Entities.Tracks;
+using Lavalink4NET.DiscordNet;
+using IrisBot.Player;
+using Lavalink4NET.Players.Preconditions;
+using Lavalink4NET;
+using Lavalink4NET.Tracks;
+using Lavalink4NET.Players;
+using Lavalink4NET.Players.Queued;
 using IrisBot.Enums;
 
 namespace IrisBot.Database
@@ -23,7 +30,7 @@ namespace IrisBot.Database
         /// <param name="currentTrack">현재 트랙</param>
         /// <param name="queue">대기열</param>
         /// <returns>플레이리스트 생성 결과</returns>
-        public static async Task<PlaylistResult> CreatePlaylistAsync(Playlist list, LavalinkTrack? currentTrack, LavalinkQueue? queue)
+        public static async Task<PlaylistResult> CreatePlaylistAsync(Playlist list, LavalinkTrack? currentTrack, ITrackQueue queue)
         {
             try
             {
@@ -55,7 +62,7 @@ namespace IrisBot.Database
                     {
                         foreach (var item in queue)
                         {
-                            byte[] buffer = Encoding.UTF8.GetBytes(item.Uri + Environment.NewLine);
+                            byte[] buffer = Encoding.UTF8.GetBytes(item.Track.Uri + Environment.NewLine);
                             await fs.WriteAsync(buffer, 0, buffer.Length);
                         }
                     }

@@ -16,6 +16,8 @@ namespace IrisBot.Modules
 
             try
             {
+                await DeferAsync();
+
                 UserInfo user = await UserInfo.CreateAsync(nickname, true);
                 if (user.UnionRankings != null && user.UnionRankings.Count() > 0)
                 {
@@ -26,11 +28,11 @@ namespace IrisBot.Modules
                     eb.AddField($"ℹ️ \"{nickname}\" 님의 전체 월드 본캐릭터 정보", sb.ToString());
                     eb.WithColor(Color.Purple);
                     eb.WithDescription("유니온 랭킹에 집계되는 월드만 확인하실 수 있습니다");
-                    await RespondAsync("", embed: eb.Build(), ephemeral: true);
+                    await FollowupAsync("", embed: eb.Build(), ephemeral: true);
                 }
                 else
                 {
-                    await RespondAsync($"⚠️ \"{nickname}\"님의 계정은 어떠한 월드에서도 유니온 랭킹에 집계되지 않습니다.", ephemeral: true);
+                    await FollowupAsync($"⚠️ \"{nickname}\"님의 계정은 어떠한 월드에서도 유니온 랭킹에 집계되지 않습니다.", ephemeral: true);
                 }
             }
             catch (NexonAPIExceptions ex)
@@ -48,20 +50,21 @@ namespace IrisBot.Modules
 
             try
             {
+                await DeferAsync();
                 UserInfo user = await UserInfo.CreateAsync(nickname, true);
 
                 if (!string.Equals(user.UnionMainCharacter, nickname))
                 {
-                    if (!string.IsNullOrEmpty(user.UnionMainCharacter))
+                    if (string.IsNullOrEmpty(user.UnionMainCharacter))
                     {
-                        eb.WithDescription($"\"{nickname}\"님은 본캐릭터가 아닙니다.");
-                        user = await UserInfo.CreateAsync(user.UnionMainCharacter, false);
+                        eb.WithTitle($"본캐릭터 조회 결과");
+                        await FollowupAsync($"⚠️ \"{nickname}\"님의 계정은 유니온 랭킹에 집계되지 않습니다.", ephemeral: true);
+                        return;
                     }
                     else
                     {
-                        eb.WithTitle($"본캐릭터 조회 결과");
-                        await RespondAsync($"⚠️ \"{nickname}\"님의 계정은 유니온 랭킹에 집계되지 않습니다.", ephemeral: true);
-                        return;
+                        eb.WithDescription($"\"{nickname}\"님은 본캐릭터가 아닙니다.");
+                        user = await UserInfo.CreateAsync(user.UnionMainCharacter, false);
                     }
                 }
                else
@@ -74,8 +77,7 @@ namespace IrisBot.Modules
                 sb = BuildGuildInfo(user);
                 eb.AddField("ℹ️ 길드 정보", sb.ToString());
                 eb.WithColor(Color.Purple);
-                await RespondAsync("", embed: eb.Build(), ephemeral: true);
-
+                await FollowupAsync("", embed: eb.Build(), ephemeral: true);
             }
             catch (NexonAPIExceptions ex)
             {
@@ -93,7 +95,9 @@ namespace IrisBot.Modules
 
             try
             {
-                UserInfo user = await UserInfo.CreateAsync(nickname, true);
+                await DeferAsync(ephemeral: true).ConfigureAwait(false);
+
+                UserInfo user = await UserInfo.CreateAsync(nickname, true).ConfigureAwait(false);
                 StringBuilder sb = BuildUserInfo(user);
 
                 if (!string.Equals(user.UnionMainCharacter, user.NickName))
@@ -143,29 +147,29 @@ namespace IrisBot.Modules
                     "따라서 50만 이상의 기여도를 가진 대상과의 거래를 권장합니다.");
 
                 eb.WithColor(Color.Purple);
-                await RespondAsync("", embed: eb.Build(), ephemeral: true);
+                await FollowupAsync("", embed: eb.Build(), ephemeral: true).ConfigureAwait(false);
             }
             catch (NexonAPIExceptions ex)
             {
                 if (ex.ErrorCode == NexonAPIErrorCode.OPENAPI00004)
-                    await RespondAsync($"⚠️ {nickname} 캐릭터는 존재하지 않거나 당일에 닉네임이 변경 또는 생성된 아이디입니다.\r\n인게임에 존재한다면 해당 캐릭터는 사기꾼일 확률이 매우 높습니다.\r\n" +
-                        $"2023년 12월 21일 이전 접속 기록이 없는 캐릭터는 조회할 수 없습니다.", ephemeral: true);
+                    await FollowupAsync($"⚠️ {nickname} 캐릭터는 존재하지 않거나 당일에 닉네임이 변경 또는 생성된 아이디입니다.\r\n인게임에 존재한다면 해당 캐릭터는 사기꾼일 확률이 매우 높습니다.\r\n" +
+                        $"2023년 12월 21일 이전 접속 기록이 없는 캐릭터는 조회할 수 없습니다.", ephemeral: true).ConfigureAwait(false);
                 else
-                    await RespondAsync($"🚫 데이터를 가져오는 중 오류가 발생했습니다.\r\n{ex.ErrorCode}: {ex.Message}", ephemeral: true);
+                    await FollowupAsync($"🚫 데이터를 가져오는 중 오류가 발생했습니다.\r\n{ex.ErrorCode}: {ex.Message}", ephemeral: true).ConfigureAwait(false);
 
-                await CustomLog.ExceptionHandler(ex);
+                await CustomLog.ExceptionHandler(ex).ConfigureAwait(false);
             }
         }
 
         private async Task HandleNexonAPIException(string nickname, NexonAPIExceptions ex)
         {
             if (ex.ErrorCode == NexonAPIErrorCode.OPENAPI00004)
-                await RespondAsync($"⚠️ {nickname} 캐릭터는 존재하지 않거나 당일에 닉네임이 변경 또는 생성된 아이디입니다.\r\n" +
-                    $"2023년 12월 21일 이전 접속 기록이 없는 캐릭터는 조회할 수 없습니다.", ephemeral: true);
+                await FollowupAsync($"⚠️ {nickname} 캐릭터는 존재하지 않거나 당일에 닉네임이 변경 또는 생성된 아이디입니다.\r\n" +
+                    $"2023년 12월 21일 이전 접속 기록이 없는 캐릭터는 조회할 수 없습니다.", ephemeral: true).ConfigureAwait(false);
             else
-                await RespondAsync($"🚫 데이터를 가져오는 중 오류가 발생했습니다.\r\n{ex.ErrorCode}: {ex.Message}", ephemeral: true);
+                await FollowupAsync($"🚫 데이터를 가져오는 중 오류가 발생했습니다.\r\n{ex.ErrorCode}: {ex.Message}", ephemeral: true).ConfigureAwait(false);
 
-            await CustomLog.ExceptionHandler(ex);
+            await CustomLog.ExceptionHandler(ex).ConfigureAwait(false);
         }
 
         private StringBuilder BuildUserInfo(UserInfo user)

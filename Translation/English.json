@@ -41,7 +41,9 @@
   "remove_queue": "🚮 Removed the track(s) on queue",
   "queue": "Queue",
   "clear_queue": "♻️ Cleared the entire queue.",
-  "queue_delete_overflow": "🚫 (A) track(s) with that index do(es) not not exist(s).",
+  "queue_delete_overflow": "🚫 (A) track(s) with that index do(es) not not exist.",
+  "expired_menu": "🚫 This menu has been expired.",
+  "player_unknown_error": "🚫 ERROR: Unknown error has occured.",
 
   "bot_description": "Open-sourced Discord music bot",
   "invitation_link": "Invitation link",
@@ -89,6 +91,8 @@
   "playlist_creation_limit": "🚫 Playlist limit is 10 per server.",
   "playlist_fail": "‼️ Playlist creation failed.",
   "playlist_empty_error": "‼️ ERROR: Playlist does not contain any tracks.",
+  "playlist_link_error": "🚫 These songs cannot be loaded",
+  "custom_playlist": "Custom Playlist",
 
   "playlist_remove_success": "🚮 Playlist remove success",
   "playlist_remove_not_exists": "🚫 Provided name of playlist does not exists",
